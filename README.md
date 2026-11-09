@@ -50,9 +50,11 @@ quantize-audio --beats chart:notes.mid --bpm 87 "mix.wav" "vocals.opus"
 ```
 
 It writes a `<song> - quantized` folder next to the song (or `--out FOLDER`) holding:
-- the song as `<song>-87bpm.mp3` (320 kbps) and `.wav`;
-- each stem as `<stem>-87bpm.wav`;
+- the song as `<song>-87bpm.mp3` (320 kbps);
+- each stem as `<stem>-87bpm.mp3`, all exactly the same length;
 - `report.json` with the tempo of every bar and the before/after measurements.
+
+Add `--wav` for lossless WAV copies beside the MP3s.
 
 It prints a summary:
 
@@ -70,6 +72,7 @@ Options:
 |---|---|
 | `--bpm N` | the tempo to quantize to (strongly recommended with detected beats) |
 | `--beats auto` / `gp:FILE` / `gp+auto:FILE` / `chart:FILE` | where the beats come from (default `auto`) |
+| `--wav` | also write each result as WAV (lossless) |
 | `--click` | also write `before-with-click` and `after-with-click` MP3s: one metronome over the original and the result, to hear the difference |
 | `--no-check` | skip measuring the result (a minute faster) |
 | `--keep-work` | keep the decoded inputs and time maps |

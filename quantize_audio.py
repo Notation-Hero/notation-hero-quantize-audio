@@ -19,7 +19,8 @@ stay locked together. The beats of the result are then detected again and measur
 
   quantize-audio --bpm 87 song.mp3 [stem.wav ...]        (or: uv run quantize_audio.py ...)
 
-Writes "<song> - quantized/" next to the song: the quantized song as MP3 and WAV, each stem as WAV, and report.json.
+Writes "<song> - quantized/" next to the song: the quantized song and each stem as MP3 (320 kbps; --wav adds WAV
+copies), and report.json.
 --click adds before/after previews with a metronome over them, to hear the difference.
 """
 import argparse, json, re, shutil, statistics, subprocess, sys, zipfile
@@ -159,7 +160,7 @@ def time_map(anchors, bpm: float, length: float):
 
 
 def stretch(wav: Path, pairs, total: float, dst: Path, engine="crisp"):
-    tm = dst.parent / "work" / (dst.stem + ".timemap.txt")
+    tm = dst.with_suffix(".timemap.txt")  # dst is in the work folder
     tm.write_text("".join(f"{round(s * SR)} {round(t * SR)}\n" for s, t in pairs))
     opts = ["--fine", "--centre-focus"] if engine == "fine" else ["--crisp", "6"]
     subprocess.run(["rubberband", "-q", *opts, "-M", str(tm), "-D", f"{total:.6f}", str(wav), str(dst)], check=True)
@@ -224,6 +225,7 @@ def main():
     ap.add_argument("--click", action="store_true", help="also write before/after previews with a metronome over them")
     ap.add_argument("--no-check", action="store_true", help="skip measuring the result (saves a minute)")
     ap.add_argument("--keep-work", action="store_true", help="keep the work folder (decoded inputs, time maps)")
+    ap.add_argument("--wav", action="store_true", help="also write each result as WAV (lossless) beside its MP3")
     ap.add_argument("--every", type=int, default=1, help="keep one key point every N beats (4 = one per bar in 4/4)")
     ap.add_argument("--engine", choices=["crisp", "fine"], default="crisp", help="Rubber Band's R2 engine with crisp transients (best in the spike), or R3")
     a = ap.parse_args()
@@ -267,11 +269,14 @@ def main():
     pairs, total, (t0, _) = time_map(anchors, bpm, length)
     outs = []
     for w in wavs:
-        dst = a.out / (w.stem[3:] + f"-{bpm:g}bpm.wav")
+        dst = work / (w.stem[3:] + f"-{bpm:g}bpm.wav")
         stretch(w, pairs, total, dst, a.engine)
         outs.append(dst)
     period = 60 / bpm
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(outs[0]), "-b:a", "320k", str(outs[0].with_suffix(".mp3"))], check=True)
+    for o in outs:
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(o), "-b:a", "320k", str(a.out / (o.stem + ".mp3"))], check=True)
+        if a.wav:
+            shutil.copy2(o, a.out / o.name)
     if a.click:
         click(total, t0, period, work / "click.wav")
         for name, song in (("after", outs[0]), ("before", wavs[0])):
@@ -281,7 +286,7 @@ def main():
     if not a.no_check:
         report["after_vs_grid"] = grid_error(detect(outs[0]), t0, period, pairs[-1][1], offbeats=True)
         report["before_vs_grid"] = grid_error(src_beats, t0, period, pairs[-1][0])
-        lens = {o.name: round(sf.info(o).duration, 3) for o in outs}
+        lens = {o.stem + ".mp3": round(sf.info(o).duration, 3) for o in outs}
         report["output_lengths_s"] = lens
     b = report.get("before_vs_grid")
     if b:
@@ -291,7 +296,8 @@ def main():
     (a.out / "report.json").write_text(json.dumps(report, indent=1))
     if not a.keep_work:
         shutil.rmtree(work)
-    print(f"\n{a.out}\n  {outs[0].with_suffix('.mp3').name}  ({len(outs)} WAV file(s) beside it)")
+    files = [o.stem + ".mp3" for o in outs]
+    print(f"\n{a.out}\n  " + "\n  ".join(files) + ("\n  (and each as WAV)" if a.wav else ""))
     print(f"  tempo {bpm:g} BPM; the band played {min(tempos)}-{max(tempos)}")
     if "after_vs_grid" in report:
         b, af = report["before_vs_grid"], report["after_vs_grid"]
