@@ -1,0 +1,3 @@
+#!/bin/bash
+# Quantize a recording onto one steady tempo. See README.md next to this file.
+exec uv run --quiet "$(dirname "$(realpath "$0")")/quantize_audio.py" "$@"

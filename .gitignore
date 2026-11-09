@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+*.wav
+*.mp3
+*.opus
+*.ogg
+*.flac
+*.m4a
+* - quantized/
+.DS_Store
